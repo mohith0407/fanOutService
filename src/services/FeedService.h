@@ -11,7 +11,7 @@
 #include "../include/ThreadPool.h"
 
 namespace services {
-class FeedService {
+class FeedService : public std::enable_shared_from_this<FeedService> {
 
 public:
     FeedService(std::shared_ptr<GraphService> graphService, 

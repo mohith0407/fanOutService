@@ -23,8 +23,8 @@ void runLoadTest() {
     auto feedService = std::make_shared<FeedService>(graphService,threadPool);
 
     // 2. Create the "Celebrity"
-    int celebrityId = 99999;
-    feedService->addUser(celebrityId, "Elon Musk");
+    int celebrityId = 0407;
+    feedService->addUser(celebrityId, "MohithRaj");
 
     // 3. Create Followers & Follow the Celebrity
     std::cout << "Creating " << NUM_FOLLOWERS << " followers..." << std::endl;
@@ -32,7 +32,7 @@ void runLoadTest() {
         feedService->addUser(i, "User" + std::to_string(i));
         graphService->follow(i, celebrityId); // User i follows Elon
     }
-
+    std::cout << "All 2000 created" << std::endl;
     // Atomic flag to coordinate start/stop
     std::atomic<bool> running{true};
     std::atomic<int> postsRead{0};
@@ -75,7 +75,7 @@ void runLoadTest() {
     // 6. Verification
     // Check a random follower's feed to ensure they got ALL 100 posts
     // (Note: Feed is capped at 100 in our User.cpp, so we expect exactly 100 or close to it)
-    auto sampleFeed = feedService->getFeedForUser(0);
+    auto sampleFeed = feedService->getFeedForUser(2);
     std::cout << "Sample Follower Feed Size: " << sampleFeed.size() << std::endl;
     
     // If your User.cpp cap is 50, this should print 50. If 100, then 100.
