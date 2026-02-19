@@ -4,10 +4,19 @@ project(SocialFanout)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
-# Include directories
-include_directories(src)
+# 1. Find Libraries (Standard System Search)
+find_path(REDIS_PLUS_PLUS_INCLUDE_DIR sw/redis++/redis++.h)
+find_path(HIREDIS_INCLUDE_DIR hiredis/hiredis.h)
 
-# Source files
+find_library(REDIS_PLUS_PLUS_LIBRARY redis++)
+find_library(HIREDIS_LIBRARY hiredis)
+
+# 2. Include Headers
+include_directories(src)
+include_directories(${REDIS_PLUS_PLUS_INCLUDE_DIR})
+include_directories(${HIREDIS_INCLUDE_DIR})
+
+# 3. Sources
 set(SOURCES
     src/models/Post.cpp
     src/models/User.cpp
@@ -16,15 +25,12 @@ set(SOURCES
     src/include/ThreadPool.cpp
 )
 
-# Main Executable
+# 4. Executables
 add_executable(FanoutApp src/main.cpp ${SOURCES})
+target_link_libraries(FanoutApp ${REDIS_PLUS_PLUS_LIBRARY} ${HIREDIS_LIBRARY} pthread)
 
-# Unit Tests Executable
-# add_executable(RunTests tests/UnitTests.cpp ${SOURCES})
+# add_executable(LoadTest tests/LoadTest.cpp ${SOURCES})
+# target_link_libraries(LoadTest ${REDIS_PLUS_PLUS_LIBRARY} ${HIREDIS_LIBRARY} pthread)
 
-# Load Test
-add_executable(LoadTest tests/LoadTest.cpp ${SOURCES})
-
-# Link Threads Library (Required for Linux/Mac)
-find_package(Threads REQUIRED)
-target_link_libraries(LoadTest Threads::Threads)
+add_executable(RedisTest tests/RedisTest.cpp)
+target_link_libraries(RedisTest ${REDIS_PLUS_PLUS_LIBRARY} ${HIREDIS_LIBRARY} pthread)

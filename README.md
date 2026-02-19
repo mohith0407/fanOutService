@@ -1,19 +1,17 @@
 # High-Performance Social Media Fanout Service (C++)
 
-A high-concurrency, in-memory backend service simulating the "Fanout-on-Write" architecture used by Twitter/Instagram. Built from scratch in C++17.
-
+A multithreaded, asynchronous backend engine for a social network feed, written in modern C++ (C++17). This project implements a **Fanout-on-Write** architecture, pushing posts to followers' feeds in the background to ensure *O(1)* read latency for the end user.
 ##  Key Features
-* **Fanout-on-Write Architecture:** Optimizes for read-heavy workloads (O(1) read time).
-* **Asynchronous Processing:** Custom `ThreadPool` implementation to handle fanout tasks in background threads, ensuring non-blocking user interactions.
-* **Thread Safety:** robust `std::mutex` and `std::lock_guard` implementation to prevent race conditions during concurrent feed updates.
-* **Memory Management:** Extensive use of Smart Pointers (`std::shared_ptr`) for RAII-compliant memory safety (no manual `delete`).
-* **Graph Data Structure:** Adjacency lists (Hash Maps of Sets) to model follower relationships with O(1) lookup time.
+* **Asynchronous Processing:** Uses a custom C++ Thread Pool to offload heavy fanout tasks from the main execution thread.
+* **Persistent Storage:** Integrated with a Dockerized **Redis** database for blazing-fast, in-memory data structures (Sets, Hashes, Lists) with disk persistence.
+* **Thread Safety:** Implements strict mutex locking and `std::enable_shared_from_this` to prevent race conditions and memory leaks during concurrent operations.
+* **Pagination:** Supports infinite scroll/pagination for fetching feeds efficiently.
 
 ##  Tech Stack
 * **Language:** C++17
+* **Database:** Redis (via Docker)
 * **Build System:** CMake
-* **Concurrency:** `std::thread`, `std::mutex`, `std::condition_variable`, `std::atomic`
-* **Testing:** Custom Load Testing script simulating high-concurrency writes.
+* **Libraries:** `redis-plus-plus`, `hiredis`
 
 ## Project Structure
 ```text
@@ -31,26 +29,39 @@ A high-concurrency, in-memory backend service simulating the "Fanout-on-Write" a
 * **Write Path:** When a user posts, the request returns immediately (microseconds).
 * **Background Path:** A pool of worker threads picks up the post and pushes it to follower feeds in parallel.
 
-## How to Build & Run
-**Prerequisites:** C++ Compiler (GCC/Clang), CMake.
 
+## Prerequisites
+1. C++17 compatible compiler (GCC/Clang)
+2. CMake (3.10+)
+3. Docker & Docker Compose
+4. `hiredis` and `redis-plus-plus` installed on your system.
+
+## How to Build & Run
+**1. Start the Redis Database**
+```bash
+docker-compose up -d
+```
+**2. Build the Project**
 ```bash
 mkdir build && cd build
 cmake ..
 make
 
 ```
-# Run the Main Application
+**3. Run the Main Application**
 ./FanoutApp
 
-# Run the Concurrency Load Test
+**4. Run the Concurrency Load Test**
 ./LoadTest
+
+## Architecture Design
+* Users & Posts: Stored as Redis Hash Maps (HSET).
+
+* Follower Graph: Stored as Redis Sets (SADD, SMEMBERS).
+
+* Timeline/Feed: Stored as Redis Lists (LPUSH, LRANGE) keeping the top recent posts readily available.
 
 # Future Improvements
 
-**Persistence:** Replace in-memory maps with Redis/PostgreSQL.
-
 **RPC Layer:** Implement gRPC to split Services into Microservices.
-
-**Pagination:** Implement cursor-based pagination for feeds.
 

@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  # The Database Service
+  redis:
+    image: redis:alpine
+    container_name: fanoutService-redis
+    ports:
+      - "6379:6379"  # Maps Docker port 6379 to WSL2 localhost:6379
+    volumes:
+      - redis_data:/data  # Persist data even if container is deleted
+    command: redis-server --appendonly yes  # Enable data durability
+
+volumes:
+  redis_data:
+
+# The -d means "Detached" mode, so it runs in the background
+# use docker-compose up -d cmd

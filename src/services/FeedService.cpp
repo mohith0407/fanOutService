@@ -4,79 +4,78 @@
 namespace services {
 
 FeedService::FeedService(std::shared_ptr<GraphService> graphService,
-                         std::shared_ptr<ThreadPool> threadPool)
-    : graphService_(graphService), threadPool_(threadPool) {}
+                         std::shared_ptr<ThreadPool> threadPool,
+                         std::shared_ptr<sw::redis::Redis> redis)
+    : graphService_(graphService), threadPool_(threadPool), redis_(redis) {}
 
 void FeedService::addUser(int id, std::string name) {
-    std::lock_guard<std::mutex> lock(repoMutex_);
-    userRepo_[id] = std::make_shared<models::User>(id, name);
+   // Redis: HSET user:1 name "Mohith"
+    redis_->hset("user:" + std::to_string(id), "name", name);
 }
 
 void FeedService::postContent(int userId, std::string content) {
 
-    // 1. FAST PART: Create Post and Save to DB (Synchronous)
-    // The user needs to know "Post Created" immediately.
-    int newPostId;
-    std::shared_ptr<models::Post> newPost;
+    // 1. Generate a Post ID (In a real app, use UUID or Redis INCR)
+    long long newPostId = redis_->incr("global:post:id");
     
-    {
-        std::lock_guard<std::mutex> lock(repoMutex_); // LOCK THE DB
+    // 2. Save Post Data to Redis (Hash Map)
+    // HSET post:100 content "Hello" author 1
+    std::string postKey = "post:" + std::to_string(newPostId);
+    redis_->hset(postKey, {
+        std::make_pair("content", content),
+        std::make_pair("author", std::to_string(userId)),
+        std::make_pair("timestamp", std::to_string(std::time(nullptr)))
+    });
 
-        if (userRepo_.find(userId) == userRepo_.end()) {
-            std::cerr << "Error: User " << userId << " does not exist." << std::endl;
-            return;
-        }
-        // 1. create a post
-        newPostId = nextPostId_++;
-        newPost = std::make_shared<models::Post>(newPostId, userId, content);
-        // 2. save to db
-        postRepo_[newPostId] = newPost;
-        
-        // 3. Add to author's feed immediately so they see their own post
-        userRepo_[userId]->addToFeed(newPost);
-    } // unlock the db
-    
-    std::cout << "[Main Thread] Post " << newPostId << " saved. Returning response to user.\n";
+    std::cout << "[Main] Post " << newPostId << " saved to Redis.\n";
 
-    // 2. SLOW PART: Fanout (Asynchronous)
-    // We package the heavy work into a lambda and give it to the ThreadPool.
-    // 'this' is captured to access member variables.
-    // 'userId' and 'newPost' are captured by value.
-
-    // This ensures FeedService cannot be destroyed until the lambda finishes!
+    // 3. ASYNC FANOUT
     auto self = shared_from_this();
-    threadPool_->enqueue([self, userId, newPost]() {
-        // This block runs on a Background Thread!
-        
+    threadPool_->enqueue([self, userId, newPostId]() {
+        // Get followers from Redis
         std::vector<int> followers = self->graphService_->getFollowers(userId);
         
         for (int followerId : followers) {
-            // Simulate network latency (e.g., 10ms per follower)
-            // std::this_thread::sleep_for(std::chrono::milliseconds(10)); 
-
-            std::unique_lock<std::mutex> lock(self->repoMutex_);
-            if (self->userRepo_.find(followerId) != self->userRepo_.end()) {
-                auto follower = self->userRepo_[followerId];
-                lock.unlock(); // Unlock early before doing the heavy addToFeed
-                
-                // User::addToFeed is already thread-safe (has its own mutex)
-                follower->addToFeed(newPost);
-            }
+            std::string feedKey = "user:" + std::to_string(followerId) + ":feed";
+            
+            // Redis Pipeline is efficient for batch jobs, but simple commands work too.
+            // LPUSH: Add to top of feed
+            self->redis_->lpush(feedKey, std::to_string(newPostId));
+            
+            // LTRIM: Keep only top 100 posts (Save space)
+            self->redis_->ltrim(feedKey, 0, 99);
         }
-        std::cout << "[Background Worker] Fanout for Post " << newPost->getId() << " complete.\n";
+        std::cout << "[Worker] Fanout for Post " << newPostId << " complete.\n";
     });
 }
 
-std::vector<std::shared_ptr<models::Post>> FeedService::getFeedForUser(int userId) {
-    std::lock_guard<std::mutex> lock(repoMutex_);
-    if (userRepo_.find(userId) == userRepo_.end()) return {};
+std::vector<std::shared_ptr<models::Post>> FeedService::getFeedForUser(int userId, int offset, int limit) {
+    std::string feedKey = "user:" + std::to_string(userId) + ":feed";
+    std::vector<std::string> postIds;
     
-    // Convert list to vector for return
-    // const auto& listFeed = userRepo_[userId]->getFeedSnapshot();
-    // return std::vector<std::shared_ptr<models::Post>>(listFeed.begin(), listFeed.end());
+    // Redis LRANGE uses inclusive indices [start, stop]
+    // If offset=0, limit=10 -> start=0, stop=9
+    int start = offset;
+    int stop = offset + limit - 1;
     
-    // using threadpool
-    return userRepo_[userId]->getFeedSnapshot();
-}
+    redis_->lrange(feedKey, start, stop, std::back_inserter(postIds));
 
+    std::vector<std::shared_ptr<models::Post>> feed;
+    for (const auto& pidStr : postIds) {
+        std::string postKey = "post:" + pidStr;
+        
+        // OPTIMIZATION: Use HMGET (Multi-Get) to fetch fields in one network packet
+        std::vector<std::string> fields = {"content", "author"};
+        std::vector<std::optional<std::string>> values;
+        redis_->hmget(postKey, fields.begin(), fields.end(), std::back_inserter(values));
+        
+        // values[0] is content, values[1] is author
+        if (values[0] && values[1]) {
+            int pid = std::stoi(pidStr);
+            int authorId = std::stoi(*values[1]);
+            feed.push_back(std::make_shared<models::Post>(pid, authorId, *values[0]));
+        }
+    }
+    return feed;
+}
 }
