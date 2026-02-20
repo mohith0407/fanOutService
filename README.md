@@ -1,25 +1,34 @@
 # High-Performance Social Media Fanout Service (C++)
 
-A multithreaded, asynchronous backend engine for a social network feed, written in modern C++ (C++17). This project implements a **Fanout-on-Write** architecture, pushing posts to followers' feeds in the background to ensure *O(1)* read latency for the end user.
+A distributed, high-concurrency backend service for a social network feed. Built in modern C++ (C++17), this project implements a **Fanout-on-Write** architecture and exposes a high-performance **gRPC API**. The entire system is containerized using Docker.
+
 ##  Key Features
-* **Asynchronous Processing:** Uses a custom C++ Thread Pool to offload heavy fanout tasks from the main execution thread.
-* **Persistent Storage:** Integrated with a Dockerized **Redis** database for blazing-fast, in-memory data structures (Sets, Hashes, Lists) with disk persistence.
-* **Thread Safety:** Implements strict mutex locking and `std::enable_shared_from_this` to prevent race conditions and memory leaks during concurrent operations.
-* **Pagination:** Supports infinite scroll/pagination for fetching feeds efficiently.
+
+* **gRPC API Layer:** Replaced standard local function calls with a high-performance, strongly-typed gRPC network interface using Protocol Buffers (`.proto`).
+* **Asynchronous Fanout:** Uses a custom C++ `ThreadPool` to push posts to follower feeds in the background, ensuring $O(1)$ read latency for end users.
+* **Persistent Storage:** Integrated with **Redis** for blazing-fast in-memory data structures (Sets, Hashes, Lists) with persistent disk backups.
+* **Dockerized Infrastructure:** The C++ Server and Redis database are containerized and orchestrated via `docker-compose` for seamless cross-platform deployment.
+* **Pagination:** Supports offset-based pagination for timeline feeds.
 
 ##  Tech Stack
+
 * **Language:** C++17
-* **Database:** Redis (via Docker)
-* **Build System:** CMake
-* **Libraries:** `redis-plus-plus`, `hiredis`
+* **API Framework:** gRPC & Protocol Buffers (Protobuf)
+* **Database:** Redis (via `redis-plus-plus` & `hiredis`)
+* **DevOps:** Docker, Docker Compose, CMake
 
 ## Project Structure
+
 ```text
+├── proto/             # gRPC Protocol Buffer definitions (.proto)
 ├── src/
-│   ├── models/        # Data Entities (User, Post)
+│   ├── models/        # Data Entities
 │   ├── services/      # Business Logic (FeedService, GraphService)
-│   └── include/       # Utilities (ThreadPool)
-├── tests/             # Load tests & Unit tests
+│   ├── include/       # Utilities (ThreadPool)
+│   ├── server.cpp     # gRPC Server Entrypoint
+│   └── client.cpp     # Dummy C++ gRPC Client for testing
+├── docker-compose.yml # Container orchestration
+├── Dockerfile         # C++ Ubuntu build environment
 └── CMakeLists.txt     # Build Configuration
 
 ```
@@ -35,6 +44,18 @@ A multithreaded, asynchronous backend engine for a social network feed, written 
 2. CMake (3.10+)
 3. Docker & Docker Compose
 4. `hiredis` and `redis-plus-plus` installed on your system.
+
+## Testing the API
+
+You can test the endpoints using Postman (which supports gRPC) or by building the local C++ test client:
+
+```bash
+mkdir build && cd build
+cmake ..
+make GrpcClient
+./GrpcClient
+
+```
 
 ## How to Build & Run
 **1. Start the Redis Database**

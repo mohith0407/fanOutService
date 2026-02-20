@@ -1,0 +1,15 @@
+# Ignore local build caches and binaries
+build/
+CMakeCache.txt
+CMakeFiles/
+Makefile
+*.o
+*.a
+*.so
+
+# Ignore Git files
+.git/
+
+# Ignore IDE files
+.vscode/
+.idea/

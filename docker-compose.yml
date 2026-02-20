@@ -10,7 +10,16 @@ services:
     volumes:
       - redis_data:/data  # Persist data even if container is deleted
     command: redis-server --appendonly yes  # Enable data durability
-
+  # Our C++ gRPC Microservice
+  api-server:
+    build: .
+    container_name: social-api
+    ports:
+      - "50051:50051"
+    environment:
+      - REDIS_HOST=redis  # Tell C++ to connect to the 'redis' container!
+    depends_on:
+      - redis
 volumes:
   redis_data:
 
