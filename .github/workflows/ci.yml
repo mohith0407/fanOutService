@@ -1,54 +1,65 @@
-name: C++ Microservice CI
+name: C++ Microservice CI/CD
 
-# 1. When should this pipeline run?
 on:
   push:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
 
-# 2. What jobs should it execute?
+# We must grant the pipeline permission to upload packages
+permissions:
+  contents: read
+  packages: write
+
 jobs:
-  build-and-test:
-    # GitHub will provide a fresh, temporary Ubuntu server
+  build-test-and-publish:
     runs-on: ubuntu-latest
 
     steps:
-    # Step A: Download your code onto the GitHub server
     - name: Checkout Repository
       uses: actions/checkout@v4
 
-    # Step B: Build the C++ Docker image
-    - name: Build Docker Containers
+    # --- CI: Build & Test  ---
+    - name: Build and Test Locally
       run: |
-        echo "Building the C++ gRPC Server and Redis..."
-        docker compose build
-
-    # Step C: Boot up the microservice in the cloud
-    - name: Start Services
-      run: |
-        echo "Starting services in detached mode..."
-        docker compose up -d
-
-    # Step D: Verify the container didn't crash
-    - name: Check Container Status
-      run: |
-        echo "Waiting for services to initialize..."
+        docker compose up -d --build
         sleep 5
-        docker ps
-        
-        # Check if the api-server container is actually running
         if [ -z "$(docker ps -q -f name=social-api)" ]; then
-          echo "API Server container crashed or failed to start!"
+          echo " API Server container crashed!"
+          docker compose logs api-server
           exit 1
-        else
-          echo "API Server is running successfully."
         fi
+        echo "Server is stable."
+        docker compose down
 
-    # Step E: Print the logs so we can see the "gRPC Server listening" message
-    - name: View Server Logs
-      run: docker compose logs api-server
+    # --- CD: Publish to Registry  ---
+    
+    # 1. Log in to GitHub's Docker Registry using an automatic token
+    - name: Log in to GitHub Container Registry
+      if: github.event_name != 'pull_request' # Only publish when merging to main
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
 
-    # Step F: Clean up
-    - name: Tear Down
-      run: docker compose down
+    # 2. Build the image and push it to the cloud
+    - name: Build and Push Docker Image
+      if: github.event_name != 'pull_request'
+      run: |
+        # Docker requires repo names to be 100% lowercase. 
+        # This bash command safely converts your GitHub username to lowercase.
+        REPO_OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+        IMAGE_NAME="ghcr.io/$REPO_OWNER/social-network-api"
+        
+        echo "Building image: $IMAGE_NAME:v3.0"
+        
+        # Build the C++ Server image from our Dockerfile
+        docker build -t $IMAGE_NAME:v3.0 .
+        
+        # Tag it as the 'latest' version as well
+        docker tag $IMAGE_NAME:v3.0 $IMAGE_NAME:latest
+        
+        # Push both tags to GitHub!
+        docker push $IMAGE_NAME:v3.0
+        docker push $IMAGE_NAME:latest
