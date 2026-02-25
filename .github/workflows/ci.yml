@@ -1,0 +1,54 @@
+name: C++ Microservice CI
+
+# 1. When should this pipeline run?
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+# 2. What jobs should it execute?
+jobs:
+  build-and-test:
+    # GitHub will provide a fresh, temporary Ubuntu server
+    runs-on: ubuntu-latest
+
+    steps:
+    # Step A: Download your code onto the GitHub server
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    # Step B: Build the C++ Docker image
+    - name: Build Docker Containers
+      run: |
+        echo "Building the C++ gRPC Server and Redis..."
+        docker-compose build
+
+    # Step C: Boot up the microservice in the cloud
+    - name: Start Services
+      run: |
+        echo "Starting services in detached mode..."
+        docker-compose up -d
+
+    # Step D: Verify the container didn't crash
+    - name: Check Container Status
+      run: |
+        echo "Waiting for services to initialize..."
+        sleep 5
+        docker ps
+        
+        # Check if the api-server container is actually running
+        if [ -z "$(docker ps -q -f name=social-api)" ]; then
+          echo "API Server container crashed or failed to start!"
+          exit 1
+        else
+          echo "API Server is running successfully."
+        fi
+
+    # Step E: Print the logs so we can see the "gRPC Server listening" message
+    - name: View Server Logs
+      run: docker-compose logs api-server
+
+    # Step F: Clean up
+    - name: Tear Down
+      run: docker-compose down
