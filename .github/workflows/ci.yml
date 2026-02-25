@@ -22,13 +22,13 @@ jobs:
     - name: Build Docker Containers
       run: |
         echo "Building the C++ gRPC Server and Redis..."
-        docker-compose build
+        docker compose build
 
     # Step C: Boot up the microservice in the cloud
     - name: Start Services
       run: |
         echo "Starting services in detached mode..."
-        docker-compose up -d
+        docker compose up -d
 
     # Step D: Verify the container didn't crash
     - name: Check Container Status
@@ -47,8 +47,8 @@ jobs:
 
     # Step E: Print the logs so we can see the "gRPC Server listening" message
     - name: View Server Logs
-      run: docker-compose logs api-server
+      run: docker compose logs api-server
 
     # Step F: Clean up
     - name: Tear Down
-      run: docker-compose down
+      run: docker compose down
