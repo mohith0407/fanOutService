@@ -1,21 +1,21 @@
-# High-Performance Social Media Fanout Service (C++)
+# Social Media Fanout Service
 
-A distributed, high-concurrency backend service for a social network feed. Built in modern C++ (C++17), this project implements a **Fanout-on-Write** architecture and exposes a high-performance **gRPC API**. The entire system is containerized using Docker.
+A distributed, high-concurrency backend service for a social network feed. Built in modern C++, this project implements a **Fanout-on-Write** architecture and exposes a high-performance **gRPC API**. The entire system is containerized using Docker.
 
 ##  Key Features
 
 * **gRPC API Layer:** Replaced standard local function calls with a high-performance, strongly-typed gRPC network interface using Protocol Buffers (`.proto`).
-* **Asynchronous Fanout:** Uses a custom C++ `ThreadPool` to push posts to follower feeds in the background, ensuring $O(1)$ read latency for end users.
+* **Asynchronous Fanout:** Uses a custom C++ `ThreadPool` to push posts to follower feeds in the background.
 * **Persistent Storage:** Integrated with **Redis** for blazing-fast in-memory data structures (Sets, Hashes, Lists) with persistent disk backups.
 * **Dockerized Infrastructure:** The C++ Server and Redis database are containerized and orchestrated via `docker-compose` for seamless cross-platform deployment.
 * **Pagination:** Supports offset-based pagination for timeline feeds.
 
 ##  Tech Stack
 
-* **Language:** C++17
-* **API Framework:** gRPC & Protocol Buffers (Protobuf)
-* **Database:** Redis (via `redis-plus-plus` & `hiredis`)
-* **DevOps:** Docker, Docker Compose, CMake
+* **Language:** C++
+* **API Framework:** gRPC
+* **Database:** Redis
+* **Tools:** Docker, CMake
 
 ## Project Structure
 
@@ -34,15 +34,14 @@ A distributed, high-concurrency backend service for a social network feed. Built
 ```
 
 ## Performance
-* The system uses an Asynchronous Task Queue (Producer-Consumer pattern).
 * **Write Path:** When a user posts, the request returns immediately (microseconds).
 * **Background Path:** A pool of worker threads picks up the post and pushes it to follower feeds in parallel.
 
 
 ## Prerequisites
 1. C++17 compatible compiler (GCC/Clang)
-2. CMake (3.10+)
-3. Docker & Docker Compose
+2. CMake
+3. Docker
 4. `hiredis` and `redis-plus-plus` installed on your system.
 
 ## Testing the API
